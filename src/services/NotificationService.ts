@@ -72,7 +72,7 @@ class NotificationService {
       });
       
       notification.onclick = () => {
-        window.open(getWhatsAppLink(reminder.phoneNumber), '_blank');
+        this.openWhatsApp(reminder);
         notification.close();
       };
     }
@@ -80,6 +80,31 @@ class NotificationService {
     // Play sound
     const audio = new Audio('/notification.mp3');
     audio.play().catch(err => console.error('Failed to play notification sound:', err));
+    
+    // Automatically open WhatsApp without requiring user interaction
+    this.openWhatsApp(reminder);
+  }
+  
+  private openWhatsApp(reminder: Reminder) {
+    // Check if we're on mobile or desktop to determine the best way to open WhatsApp
+    const isMobile = window.innerWidth < 768;
+    const whatsappUrl = getWhatsAppLink(reminder.phoneNumber);
+    
+    if (isMobile) {
+      // On mobile, try to open the WhatsApp app directly
+      window.location.href = `${whatsappUrl}&text=${encodeURIComponent(reminder.message)}`;
+    } else {
+      // On desktop, open in a new tab
+      const newWindow = window.open(whatsappUrl, '_blank');
+      
+      // If the browser blocked the popup, notify the user
+      if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+        console.warn('Popup was blocked. Please allow popups for this site to automatically open WhatsApp.');
+      } else {
+        // If the window opened successfully, focus it and close it after a delay
+        newWindow.focus();
+      }
+    }
   }
   
   cleanup() {
