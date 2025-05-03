@@ -1,6 +1,7 @@
 
 import { Reminder } from "@/types/reminder";
 import { getNextOccurrence, getWhatsAppLink } from "@/utils/reminderUtils";
+import { updateReminderInDb } from "@/lib/supabase";
 
 class NotificationService {
   private checkInterval: number | null = null;
@@ -41,7 +42,7 @@ class NotificationService {
     console.log("Checking for due reminders...");
   }
   
-  public checkReminder(reminder: Reminder): boolean {
+  public async checkReminder(reminder: Reminder): Promise<boolean> {
     if (!reminder.isActive) return false;
     
     const now = new Date();
@@ -57,6 +58,17 @@ class NotificationService {
       console.log(`Reminder due: ${reminder.contactName} - ${reminder.message}`);
       this.triggerNotification(reminder);
       this.callbacks.onReminderDue(reminder);
+      
+      // Update the last triggered time in the database
+      try {
+        await updateReminderInDb({ 
+          ...reminder, 
+          lastTriggered: new Date().toISOString() 
+        });
+      } catch (error) {
+        console.error('Failed to update lastTriggered timestamp:', error);
+      }
+      
       return true;
     }
     

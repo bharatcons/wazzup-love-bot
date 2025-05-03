@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +36,7 @@ interface ReminderFormProps {
 const ReminderForm: React.FC<ReminderFormProps> = ({ initialData, onClose }) => {
   const { addReminder, updateReminder } = useReminders();
   const isEditing = !!initialData;
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [contactName, setContactName] = useState(initialData?.contactName || "");
   const [phoneNumber, setPhoneNumber] = useState(initialData?.phoneNumber || "");
@@ -89,39 +89,47 @@ const ReminderForm: React.FC<ReminderFormProps> = ({ initialData, onClose }) => 
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) {
       return;
     }
     
-    const reminderData: Omit<Reminder, "id"> = {
-      contactName,
-      phoneNumber,
-      message,
-      time: { hour, minute },
-      frequency,
-      isActive: initialData?.isActive ?? true,
-      lastTriggered: initialData?.lastTriggered,
-    };
+    setIsSubmitting(true);
     
-    // Add frequency-specific fields
-    if (frequency === "weekly") {
-      reminderData.weekDays = weekDays;
-    } else if (frequency === "monthly") {
-      reminderData.monthDay = monthDay;
-    } else if (frequency === "once" && date) {
-      reminderData.date = date.toISOString();
+    try {
+      const reminderData: Omit<Reminder, "id"> = {
+        contactName,
+        phoneNumber,
+        message,
+        time: { hour, minute },
+        frequency,
+        isActive: initialData?.isActive ?? true,
+        lastTriggered: initialData?.lastTriggered,
+      };
+      
+      // Add frequency-specific fields
+      if (frequency === "weekly") {
+        reminderData.weekDays = weekDays;
+      } else if (frequency === "monthly") {
+        reminderData.monthDay = monthDay;
+      } else if (frequency === "once" && date) {
+        reminderData.date = date.toISOString();
+      }
+      
+      if (isEditing && initialData) {
+        await updateReminder({ ...reminderData, id: initialData.id });
+      } else {
+        await addReminder(reminderData);
+      }
+      
+      if (onClose) onClose();
+    } catch (error) {
+      console.error("Error submitting reminder:", error);
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    if (isEditing && initialData) {
-      updateReminder({ ...reminderData, id: initialData.id });
-    } else {
-      addReminder(reminderData);
-    }
-    
-    if (onClose) onClose();
   };
 
   const generateHourOptions = () => {
@@ -371,12 +379,16 @@ const ReminderForm: React.FC<ReminderFormProps> = ({ initialData, onClose }) => 
         </CardContent>
         <CardFooter className="flex justify-between">
           {onClose && (
-            <Button variant="outline" type="button" onClick={onClose}>
+            <Button variant="outline" type="button" onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
           )}
-          <Button type="submit" className="bg-whatsapp hover:bg-whatsapp-dark">
-            {isEditing ? "Update Reminder" : "Create Reminder"}
+          <Button 
+            type="submit" 
+            className="bg-whatsapp hover:bg-whatsapp-dark" 
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Saving..." : isEditing ? "Update Reminder" : "Create Reminder"}
           </Button>
         </CardFooter>
       </form>

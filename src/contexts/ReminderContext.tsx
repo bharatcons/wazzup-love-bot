@@ -2,13 +2,18 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Reminder } from '@/types/reminder';
 import { useToast } from '@/components/ui/use-toast';
+import { fetchReminders, addReminderToDb, updateReminderInDb, deleteReminderFromDb, supabase } from '@/lib/supabase';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getNextOccurrence } from '@/utils/reminderUtils';
 
 interface ReminderContextType {
   reminders: Reminder[];
-  addReminder: (reminder: Omit<Reminder, 'id'>) => void;
-  updateReminder: (reminder: Reminder) => void;
-  deleteReminder: (id: string) => void;
-  toggleReminderActive: (id: string) => void;
+  isLoading: boolean;
+  error: Error | null;
+  addReminder: (reminder: Omit<Reminder, 'id'>) => Promise<void>;
+  updateReminder: (reminder: Reminder) => Promise<void>;
+  deleteReminder: (id: string) => Promise<void>;
+  toggleReminderActive: (id: string) => Promise<void>;
   activeReminders: Reminder[];
   upcomingReminders: Reminder[];
 }
@@ -28,75 +33,120 @@ interface ReminderProviderProps {
 }
 
 export const ReminderProvider: React.FC<ReminderProviderProps> = ({ children }) => {
-  const [reminders, setReminders] = useState<Reminder[]>([]);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // Load reminders from Supabase
+  const { 
+    data: reminders = [], 
+    isLoading, 
+    error 
+  } = useQuery({
+    queryKey: ['reminders'],
+    queryFn: fetchReminders,
+  });
 
+  // Set up Supabase real-time subscription
   useEffect(() => {
-    // Load reminders from localStorage on mount
-    const savedReminders = localStorage.getItem('whatsappReminders');
-    if (savedReminders) {
-      try {
-        setReminders(JSON.parse(savedReminders));
-      } catch (error) {
-        console.error('Failed to parse reminders from localStorage:', error);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    // Save reminders to localStorage whenever they change
-    localStorage.setItem('whatsappReminders', JSON.stringify(reminders));
-  }, [reminders]);
-
-  const addReminder = (reminderData: Omit<Reminder, 'id'>) => {
-    const newReminder: Reminder = {
-      ...reminderData,
-      id: crypto.randomUUID(),
+    const subscription = supabase
+      .channel('reminders-changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'reminders' 
+      }, () => {
+        // Invalidate the query to refetch data
+        queryClient.invalidateQueries({ queryKey: ['reminders'] });
+      })
+      .subscribe();
+      
+    return () => {
+      subscription.unsubscribe();
     };
+  }, [queryClient]);
 
-    setReminders((prevReminders) => [...prevReminders, newReminder]);
-    toast({
-      title: "Reminder Created",
-      description: `Reminder for ${reminderData.contactName} has been scheduled.`,
-    });
+  // Add reminder mutation
+  const addReminderMutation = useMutation({
+    mutationFn: addReminderToDb,
+    onSuccess: (newReminder) => {
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
+      toast({
+        title: "Reminder Created",
+        description: `Reminder for ${newReminder.contactName} has been scheduled.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to create reminder",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Update reminder mutation
+  const updateReminderMutation = useMutation({
+    mutationFn: updateReminderInDb,
+    onSuccess: (updatedReminder) => {
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
+      toast({
+        title: "Reminder Updated",
+        description: `Changes to reminder for ${updatedReminder.contactName} have been saved.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to update reminder",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Delete reminder mutation
+  const deleteReminderMutation = useMutation({
+    mutationFn: deleteReminderFromDb,
+    onSuccess: (id) => {
+      queryClient.invalidateQueries({ queryKey: ['reminders'] });
+      const reminderToDelete = reminders.find(reminder => reminder.id === id);
+      toast({
+        title: "Reminder Deleted",
+        description: reminderToDelete 
+          ? `Reminder for ${reminderToDelete.contactName} has been removed.` 
+          : "Reminder has been removed.",
+        variant: "destructive",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to delete reminder",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  const addReminder = async (reminderData: Omit<Reminder, 'id'>) => {
+    await addReminderMutation.mutateAsync(reminderData);
   };
 
-  const updateReminder = (updatedReminder: Reminder) => {
-    setReminders((prevReminders) =>
-      prevReminders.map((reminder) =>
-        reminder.id === updatedReminder.id ? updatedReminder : reminder
-      )
-    );
-    toast({
-      title: "Reminder Updated",
-      description: `Changes to reminder for ${updatedReminder.contactName} have been saved.`,
-    });
+  const updateReminder = async (updatedReminder: Reminder) => {
+    await updateReminderMutation.mutateAsync(updatedReminder);
   };
 
-  const deleteReminder = (id: string) => {
-    const reminderToDelete = reminders.find(reminder => reminder.id === id);
-    setReminders((prevReminders) => prevReminders.filter((reminder) => reminder.id !== id));
-    toast({
-      title: "Reminder Deleted",
-      description: reminderToDelete 
-        ? `Reminder for ${reminderToDelete.contactName} has been removed.` 
-        : "Reminder has been removed.",
-      variant: "destructive",
-    });
+  const deleteReminder = async (id: string) => {
+    await deleteReminderMutation.mutateAsync(id);
   };
 
-  const toggleReminderActive = (id: string) => {
-    setReminders((prevReminders) =>
-      prevReminders.map((reminder) =>
-        reminder.id === id
-          ? { ...reminder, isActive: !reminder.isActive }
-          : reminder
-      )
-    );
-    
+  const toggleReminderActive = async (id: string) => {
     const targetReminder = reminders.find(reminder => reminder.id === id);
     if (targetReminder) {
       const newState = !targetReminder.isActive;
+      await updateReminderMutation.mutateAsync({
+        ...targetReminder,
+        isActive: newState
+      });
+      
       toast({
         title: newState ? "Reminder Activated" : "Reminder Deactivated",
         description: `Reminder for ${targetReminder.contactName} is now ${newState ? "active" : "inactive"}.`,
@@ -108,13 +158,28 @@ export const ReminderProvider: React.FC<ReminderProviderProps> = ({ children }) 
   const activeReminders = reminders.filter(reminder => reminder.isActive);
 
   // Get upcoming reminders (next 24 hours)
-  const upcomingReminders = activeReminders.filter(reminder => {
-    // For simplicity, we're just checking daily reminders for now
-    return reminder.frequency === 'daily';
-  });
+  const upcomingReminders = activeReminders
+    .map(reminder => {
+      const nextOccurrence = getNextOccurrence(reminder);
+      return { reminder, nextOccurrence };
+    })
+    .filter(({ nextOccurrence }) => {
+      if (!nextOccurrence) return false;
+      const now = new Date();
+      const inNextDay = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      return nextOccurrence <= inNextDay;
+    })
+    .sort((a, b) => {
+      if (!a.nextOccurrence) return 1;
+      if (!b.nextOccurrence) return -1;
+      return a.nextOccurrence.getTime() - b.nextOccurrence.getTime();
+    })
+    .map(({ reminder }) => reminder);
 
   const value = {
     reminders,
+    isLoading,
+    error: error as Error | null,
     addReminder,
     updateReminder,
     deleteReminder,

@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useReminders } from "@/contexts/ReminderContext";
 import ReminderCard from "./ReminderCard";
@@ -6,13 +5,13 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import ReminderForm from "./ReminderForm";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const ReminderList: React.FC = () => {
-  const { reminders } = useReminders();
+  const { reminders, isLoading } = useReminders();
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   
@@ -31,6 +30,15 @@ const ReminderList: React.FC = () => {
     reminder.phoneNumber.includes(searchQuery) ||
     reminder.message.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (isLoading) {
+    return (
+      <div className="w-full max-w-4xl mx-auto flex flex-col items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-whatsapp" />
+        <p className="mt-4 text-muted-foreground">Loading your reminders...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-4xl mx-auto">
