@@ -45,12 +45,12 @@ const ReminderNotifications: React.FC = () => {
   }, [toast]);
   
   useEffect(() => {
-    // Check for due reminders every 15 seconds
+    // Check for due reminders every 10 seconds
     const checkInterval = setInterval(() => {
       activeReminders.forEach(reminder => {
         notificationService.checkReminder(reminder);
       });
-    }, 15000);
+    }, 10000);
     
     return () => clearInterval(checkInterval);
   }, [activeReminders]);
@@ -61,14 +61,14 @@ const ReminderNotifications: React.FC = () => {
 const Index: React.FC = () => {
   return (
     <ReminderProvider>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Header />
-        <main className="container py-8">
+        <main className="container py-4 md:py-8 px-3 md:px-6 flex-grow">
           <ReminderNotifications />
           <UpcomingReminders />
           <ReminderList />
         </main>
-        <footer className="mt-12 py-6 border-t text-center text-sm text-muted-foreground">
+        <footer className="py-4 md:py-6 border-t text-center text-xs md:text-sm text-muted-foreground">
           <p>WhatsApp Reminder Manager &copy; {new Date().getFullYear()}</p>
         </footer>
       </div>

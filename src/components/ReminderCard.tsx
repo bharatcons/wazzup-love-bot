@@ -33,6 +33,7 @@ import { useReminders } from "@/contexts/ReminderContext";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import ReminderForm from "./ReminderForm";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ReminderCardProps {
   reminder: Reminder;
@@ -41,54 +42,65 @@ interface ReminderCardProps {
 const ReminderCard: React.FC<ReminderCardProps> = ({ reminder }) => {
   const { toggleReminderActive, deleteReminder } = useReminders();
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
+  const isMobile = useIsMobile();
   
   const handleOpenWhatsApp = () => {
-    window.open(getWhatsAppLink(reminder.phoneNumber), '_blank');
+    const whatsappUrl = getWhatsAppLink(reminder.phoneNumber);
+    const encodedMessage = encodeURIComponent(reminder.message);
+    
+    if (isMobile) {
+      // On mobile, try to open the WhatsApp app directly
+      window.location.href = `${whatsappUrl}&text=${encodedMessage}`;
+    } else {
+      // On desktop, open in a new tab
+      window.open(`${whatsappUrl}&text=${encodedMessage}`, '_blank')?.focus();
+    }
   };
 
   return (
     <>
       <Card className={`w-full transition-opacity duration-200 ${!reminder.isActive ? 'opacity-70' : ''}`}>
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-1 md:pb-2 px-3 md:px-6 pt-3 md:pt-4">
           <div className="flex justify-between">
-            <div>
-              <CardTitle className="text-lg">{reminder.contactName}</CardTitle>
-              <CardDescription className="flex items-center mt-1">
-                <Phone className="h-3 w-3 mr-1" />
-                {formatPhoneNumber(reminder.phoneNumber)}
+            <div className="min-w-0 flex-1 mr-2">
+              <CardTitle className="text-base md:text-lg truncate">{reminder.contactName}</CardTitle>
+              <CardDescription className="flex items-center mt-0.5 md:mt-1 text-xs md:text-sm">
+                <Phone className="h-3 w-3 mr-1 flex-shrink-0" />
+                <span className="truncate">{formatPhoneNumber(reminder.phoneNumber)}</span>
               </CardDescription>
             </div>
             <Switch 
               checked={reminder.isActive}
               onCheckedChange={() => toggleReminderActive(reminder.id)}
               aria-label="Toggle reminder"
+              className="data-[state=checked]:bg-whatsapp"
             />
           </div>
         </CardHeader>
-        <CardContent className="space-y-3 pb-2">
+        <CardContent className="space-y-2 md:space-y-3 pb-1 md:pb-2 px-3 md:px-6">
           <div className="flex items-start space-x-2">
-            <MessageCircle className="h-4 w-4 mt-1 text-muted-foreground" />
-            <p className="text-sm flex-1">{truncateMessage(reminder.message, 100)}</p>
+            <MessageCircle className="h-3.5 w-3.5 md:h-4 md:w-4 mt-0.5 md:mt-1 text-muted-foreground flex-shrink-0" />
+            <p className="text-xs md:text-sm flex-1">{truncateMessage(reminder.message, isMobile ? 60 : 100)}</p>
           </div>
           
           <div className="flex items-center justify-between">
-            <div className="flex items-center text-sm text-muted-foreground">
-              <Clock className="h-4 w-4 mr-1.5" />
+            <div className="flex items-center text-xs md:text-sm text-muted-foreground">
+              <Clock className="h-3.5 w-3.5 md:h-4 md:w-4 mr-1.5 flex-shrink-0" />
               <span>{formatReminderTime(reminder.time)}</span>
             </div>
             
-            <Badge variant="outline" className="flex items-center">
-              <CalendarClock className="h-3 w-3 mr-1" />
-              <span className="text-xs">{getFrequencyLabel(reminder)}</span>
+            <Badge variant="outline" className="flex items-center text-[10px] md:text-xs h-5 md:h-6">
+              <CalendarClock className="h-2.5 w-2.5 md:h-3 md:w-3 mr-0.5 md:mr-1" />
+              <span className="truncate">{getFrequencyLabel(reminder)}</span>
             </Badge>
           </div>
         </CardContent>
         
         <Separator />
         
-        <CardFooter className="pt-3 flex justify-between">
+        <CardFooter className="pt-1.5 md:pt-3 pb-2 md:pb-3 px-3 md:px-6 flex justify-between">
           <div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[10px] md:text-xs text-muted-foreground">
               <span className={reminder.isActive ? "font-medium text-whatsapp" : ""}>
                 {reminder.isActive ? 
                   getTimeUntilNextOccurrence(reminder) : 
@@ -96,25 +108,30 @@ const ReminderCard: React.FC<ReminderCardProps> = ({ reminder }) => {
               </span>
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 md:gap-2">
             <Button 
               variant="outline" 
               size="sm" 
-              className="text-destructive hover:text-destructive hover:bg-destructive/10" 
+              className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 md:h-8 px-1.5 md:px-3" 
               onClick={() => deleteReminder(reminder.id)}
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-3.5 w-3.5 md:h-4 md:w-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setIsEditDialogOpen(true)}>
-              <PencilIcon className="h-4 w-4" />
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-7 md:h-8 px-1.5 md:px-3"
+              onClick={() => setIsEditDialogOpen(true)}
+            >
+              <PencilIcon className="h-3.5 w-3.5 md:h-4 md:w-4" />
             </Button>
             <Button 
               size="sm" 
-              className="bg-whatsapp hover:bg-whatsapp-dark" 
+              className="bg-whatsapp hover:bg-whatsapp-dark h-7 md:h-8 px-2 md:px-3"
               onClick={handleOpenWhatsApp}
             >
-              <ExternalLink className="h-4 w-4 mr-1" />
-              Open
+              <ExternalLink className="h-3.5 w-3.5 md:h-4 md:w-4 mr-0 md:mr-1" />
+              <span className="hidden md:inline">Open</span>
             </Button>
           </div>
         </CardFooter>

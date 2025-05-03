@@ -19,8 +19,8 @@ class NotificationService {
       window.clearInterval(this.checkInterval);
     }
     
-    // Set up an interval to check for due reminders (every minute)
-    this.checkInterval = window.setInterval(() => this.checkReminders(), 60000);
+    // Set up an interval to check for due reminders every 15 seconds for better responsiveness
+    this.checkInterval = window.setInterval(() => this.checkReminders(), 15000);
     
     // Also check once immediately
     this.checkReminders();
@@ -99,23 +99,18 @@ class NotificationService {
   
   private openWhatsApp(reminder: Reminder) {
     // Check if we're on mobile or desktop to determine the best way to open WhatsApp
-    const isMobile = window.innerWidth < 768;
-    const whatsappUrl = getWhatsAppLink(reminder.phoneNumber);
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Format the WhatsApp URL with pre-filled message
+    const encodedMessage = encodeURIComponent(reminder.message);
+    const whatsappUrl = `${getWhatsAppLink(reminder.phoneNumber)}&text=${encodedMessage}`;
     
     if (isMobile) {
       // On mobile, try to open the WhatsApp app directly
-      window.location.href = `${whatsappUrl}&text=${encodeURIComponent(reminder.message)}`;
+      window.location.href = whatsappUrl;
     } else {
       // On desktop, open in a new tab
-      const newWindow = window.open(whatsappUrl, '_blank');
-      
-      // If the browser blocked the popup, notify the user
-      if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-        console.warn('Popup was blocked. Please allow popups for this site to automatically open WhatsApp.');
-      } else {
-        // If the window opened successfully, focus it and close it after a delay
-        newWindow.focus();
-      }
+      window.open(whatsappUrl, '_blank')?.focus();
     }
   }
   
