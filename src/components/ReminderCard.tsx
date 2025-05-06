@@ -1,4 +1,3 @@
-
 import React from "react";
 import {
   Card,
@@ -34,6 +33,7 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import ReminderForm from "./ReminderForm";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { getIndianWhatsAppLink, isLikelyIndianNumber, formatIndianNumber } from "@/utils/phoneUtils";
 
 interface ReminderCardProps {
   reminder: Reminder;
@@ -45,17 +45,35 @@ const ReminderCard: React.FC<ReminderCardProps> = ({ reminder }) => {
   const isMobile = useIsMobile();
   
   const handleOpenWhatsApp = () => {
-    const whatsappUrl = getWhatsAppLink(reminder.phoneNumber);
-    const encodedMessage = encodeURIComponent(reminder.message);
-    
-    if (isMobile) {
-      // On mobile, try to open the WhatsApp app directly
-      window.location.href = `${whatsappUrl}&text=${encodedMessage}`;
+    // Check if it's an Indian number
+    if (isLikelyIndianNumber(reminder.phoneNumber)) {
+      // Use our specialized Indian number WhatsApp link generator
+      const whatsappUrl = getIndianWhatsAppLink(reminder.phoneNumber, reminder.message);
+      
+      if (isMobile) {
+        // On mobile, try to open the WhatsApp app directly
+        window.location.href = whatsappUrl;
+      } else {
+        // On desktop, open in a new tab
+        window.open(whatsappUrl, '_blank')?.focus();
+      }
     } else {
-      // On desktop, open in a new tab
-      window.open(`${whatsappUrl}&text=${encodedMessage}`, '_blank')?.focus();
+      // Use the standard WhatsApp link for other numbers
+      const whatsappUrl = getWhatsAppLink(reminder.phoneNumber);
+      const encodedMessage = encodeURIComponent(reminder.message);
+      
+      if (isMobile) {
+        window.location.href = `${whatsappUrl}&text=${encodedMessage}`;
+      } else {
+        window.open(`${whatsappUrl}&text=${encodedMessage}`, '_blank')?.focus();
+      }
     }
   };
+
+  // Format phone number with special handling for Indian numbers
+  const formattedPhoneNumber = isLikelyIndianNumber(reminder.phoneNumber)
+    ? formatIndianNumber(reminder.phoneNumber)
+    : formatPhoneNumber(reminder.phoneNumber);
 
   return (
     <>
@@ -66,7 +84,10 @@ const ReminderCard: React.FC<ReminderCardProps> = ({ reminder }) => {
               <CardTitle className="text-base md:text-lg truncate">{reminder.contactName}</CardTitle>
               <CardDescription className="flex items-center mt-0.5 md:mt-1 text-xs md:text-sm">
                 <Phone className="h-3 w-3 mr-1 flex-shrink-0" />
-                <span className="truncate">{formatPhoneNumber(reminder.phoneNumber)}</span>
+                <span className="truncate">{formattedPhoneNumber}</span>
+                {isLikelyIndianNumber(reminder.phoneNumber) && (
+                  <Badge variant="outline" className="ml-1 bg-whatsapp/10 text-xs">IN</Badge>
+                )}
               </CardDescription>
             </div>
             <Switch 

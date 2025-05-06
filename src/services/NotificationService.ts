@@ -1,10 +1,11 @@
-
 import { Reminder } from "@/types/reminder";
 import { getNextOccurrence, getWhatsAppLink } from "@/utils/reminderUtils";
 import { updateReminderInDb } from "@/lib/supabase";
+import { isLikelyIndianNumber, getIndianWhatsAppLink } from "@/utils/phoneUtils";
 
 class NotificationService {
   private checkInterval: number | null = null;
+  private reminders: Reminder[] = [];
   private callbacks: {
     onReminderDue: (reminder: Reminder) => void;
   } = {
@@ -19,14 +20,16 @@ class NotificationService {
       window.clearInterval(this.checkInterval);
     }
     
-    // Set up an interval to check for due reminders every 15 seconds for better responsiveness
-    this.checkInterval = window.setInterval(() => this.checkReminders(), 15000);
+    // Set up an interval to check for due reminders every minute for better accuracy
+    this.checkInterval = window.setInterval(() => this.checkReminders(), 60000);
     
     // Also check once immediately
     this.checkReminders();
     
     // Request permission for notifications if needed
     this.requestNotificationPermission();
+    
+    console.log("Notification service initialized");
   }
   
   private async requestNotificationPermission() {
@@ -37,9 +40,20 @@ class NotificationService {
     }
   }
   
+  setReminders(reminders: Reminder[]) {
+    this.reminders = reminders.filter(r => r.isActive);
+    console.log(`Notification service tracking ${this.reminders.length} active reminders`);
+  }
+  
   private checkReminders() {
-    // This would be called by the external context that has the reminder data
-    console.log("Checking for due reminders...");
+    console.log("Checking for due reminders...", new Date().toLocaleTimeString());
+    
+    // Check all active reminders in our local cache
+    if (this.reminders.length > 0) {
+      this.reminders.forEach(reminder => {
+        this.checkReminder(reminder);
+      });
+    }
   }
   
   public async checkReminder(reminder: Reminder): Promise<boolean> {
@@ -50,12 +64,21 @@ class NotificationService {
     
     if (!nextOccurrence) return false;
     
-    // Check if the reminder is due within the next minute
+    // Calculate time difference in minutes
     const diffMs = nextOccurrence.getTime() - now.getTime();
-    const isDue = diffMs >= 0 && diffMs <= 60000;
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    
+    // Check if the reminder is due within 1 minute (more precise checking)
+    const isDue = diffMins === 0;
     
     if (isDue) {
-      console.log(`Reminder due: ${reminder.contactName} - ${reminder.message}`);
+      console.log(`Reminder due: ${reminder.contactName} - ${reminder.message}`, {
+        now: now.toISOString(),
+        nextOccurrence: nextOccurrence.toISOString(),
+        diffMs,
+        diffMins
+      });
+      
       this.triggerNotification(reminder);
       this.callbacks.onReminderDue(reminder);
       
@@ -101,16 +124,28 @@ class NotificationService {
     // Check if we're on mobile or desktop to determine the best way to open WhatsApp
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
-    // Format the WhatsApp URL with pre-filled message
-    const encodedMessage = encodeURIComponent(reminder.message);
-    const whatsappUrl = `${getWhatsAppLink(reminder.phoneNumber)}&text=${encodedMessage}`;
-    
-    if (isMobile) {
-      // On mobile, try to open the WhatsApp app directly
-      window.location.href = whatsappUrl;
+    // Check if it's an Indian number for specialized handling
+    if (isLikelyIndianNumber(reminder.phoneNumber)) {
+      // Use our specialized Indian number WhatsApp link generator with message already encoded
+      const whatsappUrl = getIndianWhatsAppLink(reminder.phoneNumber, reminder.message);
+      
+      if (isMobile) {
+        window.location.href = whatsappUrl;
+      } else {
+        window.open(whatsappUrl, '_blank')?.focus();
+      }
     } else {
-      // On desktop, open in a new tab
-      window.open(whatsappUrl, '_blank')?.focus();
+      // Format the WhatsApp URL with pre-filled message for non-Indian numbers
+      const encodedMessage = encodeURIComponent(reminder.message);
+      const whatsappUrl = `${getWhatsAppLink(reminder.phoneNumber)}&text=${encodedMessage}`;
+      
+      if (isMobile) {
+        // On mobile, try to open the WhatsApp app directly
+        window.location.href = whatsappUrl;
+      } else {
+        // On desktop, open in a new tab
+        window.open(whatsappUrl, '_blank')?.focus();
+      }
     }
   }
   
@@ -119,6 +154,8 @@ class NotificationService {
       window.clearInterval(this.checkInterval);
       this.checkInterval = null;
     }
+    this.reminders = [];
+    console.log("Notification service cleaned up");
   }
 }
 

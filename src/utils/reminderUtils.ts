@@ -14,7 +14,22 @@ export const formatPhoneNumber = (phoneNumber: string): string => {
   // Check if it's a valid number (at least 10 digits)
   if (cleaned.length < 10) return phoneNumber;
   
-  // Format as (XXX) XXX-XXXX for US numbers or keep original format
+  // Check if it's an Indian number (starts with 91 or is 10 digits starting with 6,7,8,9)
+  const isIndianNumber = cleaned.startsWith('91') || 
+    (cleaned.length === 10 && /^[6-9]/.test(cleaned));
+  
+  if (isIndianNumber) {
+    // Format Indian numbers
+    if (cleaned.length === 10) {
+      // Add country code if missing (10 digit number)
+      return `+91 ${cleaned.slice(0, 5)}-${cleaned.slice(5)}`;
+    } else if (cleaned.startsWith('91') && cleaned.length === 12) {
+      // Format with country code already included
+      return `+${cleaned.slice(0, 2)} ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
+    }
+  }
+  
+  // Format as (XXX) XXX-XXXX for US numbers
   if (cleaned.length === 10) {
     return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
   }
@@ -26,7 +41,18 @@ export const formatPhoneNumber = (phoneNumber: string): string => {
 export const getWhatsAppLink = (phoneNumber: string): string => {
   // Clean the phone number (remove any non-numeric characters)
   const cleaned = phoneNumber.replace(/\D/g, '');
-  return `https://wa.me/${cleaned}`;
+  
+  // Check if it's an Indian number (starts with 91 or is 10 digits starting with 6,7,8,9)
+  const isIndianNumber = cleaned.startsWith('91') || 
+    (cleaned.length === 10 && /^[6-9]/.test(cleaned));
+  
+  // Ensure Indian numbers have country code
+  let whatsappNumber = cleaned;
+  if (isIndianNumber && cleaned.length === 10) {
+    whatsappNumber = `91${cleaned}`;
+  }
+  
+  return `https://wa.me/${whatsappNumber}`;
 };
 
 export const truncateMessage = (message: string, maxLength: number = 50): string => {

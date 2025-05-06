@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Bell, Volume2, Moon, Sun, Save, RotateCcw, Smartphone, Globe, MessageSquare, Database } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import BackupRestore from '@/components/BackupRestore';
+import { Separator } from '@/components/ui/separator';
 
 interface Settings {
   notifications: {
@@ -28,6 +29,8 @@ interface Settings {
     defaultMessage: string;
     openMethod: 'app' | 'web';
     autoOpen: boolean;
+    autoFormatIndian?: boolean;
+    addIndianCountryCode?: boolean;
   };
 }
 
@@ -433,6 +436,50 @@ const SettingsForm: React.FC = () => {
                       whatsapp: {
                         ...settings.whatsapp,
                         autoOpen: checked
+                      }
+                    })
+                  }
+                />
+              </div>
+              
+              <Separator className="my-3" />
+              
+              <h3 className="text-sm font-medium mb-2">Indian Phone Number Settings</h3>
+              
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="auto-format-indian" className="text-xs md:text-sm">Auto-format Indian Numbers</Label>
+                  <p className="text-[10px] md:text-xs text-muted-foreground">Automatically detect and format Indian phone numbers</p>
+                </div>
+                <Switch 
+                  id="auto-format-indian" 
+                  checked={settings.whatsapp.autoFormatIndian ?? true}
+                  onCheckedChange={(checked) => 
+                    setSettings({
+                      ...settings,
+                      whatsapp: {
+                        ...settings.whatsapp,
+                        autoFormatIndian: checked
+                      }
+                    })
+                  }
+                />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="add-country-code" className="text-xs md:text-sm">Add Country Code (+91)</Label>
+                  <p className="text-[10px] md:text-xs text-muted-foreground">Automatically add +91 to 10-digit Indian numbers</p>
+                </div>
+                <Switch 
+                  id="add-country-code" 
+                  checked={settings.whatsapp.addIndianCountryCode ?? true}
+                  onCheckedChange={(checked) => 
+                    setSettings({
+                      ...settings,
+                      whatsapp: {
+                        ...settings.whatsapp,
+                        addIndianCountryCode: checked
                       }
                     })
                   }

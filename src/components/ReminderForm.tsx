@@ -25,7 +25,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, CheckIcon, MessageCircle, Phone, Clock } from "lucide-react";
+import { CalendarIcon, CheckIcon, MessageCircle, Phone, Clock, AlertCircle } from "lucide-react";
 import { Toggle } from "@/components/ui/toggle";
 import { useTemplates } from '@/contexts/TemplateContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -37,6 +37,7 @@ import { Contact } from '@/services/ContactService';
 import { Users, Search, User } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { formatPhoneNumber } from '@/utils/reminderUtils';
+import { isValidIndianNumber, formatIndianNumber, isLikelyIndianNumber } from '@/utils/phoneUtils';
 
 interface ReminderFormProps {
   initialData?: Reminder;
@@ -120,6 +121,42 @@ const ReminderForm: React.FC<ReminderFormProps> = ({ initialData, onClose }) => 
     markContactAsUsed(contact.id);
   };
 
+  // Add state for phone number validation
+  const [phoneHintText, setPhoneHintText] = useState<string | null>(null);
+  const [isIndianNumber, setIsIndianNumber] = useState<boolean>(
+    initialData ? isLikelyIndianNumber(initialData.phoneNumber) : false
+  );
+
+  // Add effect to detect and format Indian phone numbers
+  useEffect(() => {
+    if (phoneNumber) {
+      const isIndian = isLikelyIndianNumber(phoneNumber);
+      setIsIndianNumber(isIndian);
+      
+      // Only show hints if the number is partially entered (at least 4 digits)
+      const cleaned = phoneNumber.replace(/\D/g, '');
+      if (cleaned.length >= 4 && isIndian) {
+        // Check if the number is valid or partially valid
+        if (cleaned.length === 10 && /^[6-9]/.test(cleaned)) {
+          setPhoneHintText("Valid Indian mobile number");
+        } else if (cleaned.length < 10 && /^[6-9]/.test(cleaned)) {
+          setPhoneHintText("Continue entering Indian mobile number");
+        } else if (cleaned.startsWith('91') && cleaned.length < 12) {
+          setPhoneHintText("Continue entering Indian mobile number with country code");
+        } else if (cleaned.startsWith('91') && cleaned.length === 12) {
+          setPhoneHintText("Valid Indian mobile number with country code");
+        } else {
+          setPhoneHintText(null);
+        }
+      } else {
+        setPhoneHintText(null);
+      }
+    } else {
+      setPhoneHintText(null);
+      setIsIndianNumber(false);
+    }
+  }, [phoneNumber]);
+
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
     
@@ -129,7 +166,9 @@ const ReminderForm: React.FC<ReminderFormProps> = ({ initialData, onClose }) => 
     
     if (!phoneNumber.trim()) {
       newErrors.phoneNumber = "Phone number is required";
-    } else if (!/^\+?[0-9\s\-()]+$/.test(phoneNumber)) {
+    } else if (isIndianNumber && !isValidIndianNumber(phoneNumber)) {
+      newErrors.phoneNumber = "Please enter a valid Indian mobile number (10 digits starting with 6-9)";
+    } else if (!isIndianNumber && !/^\+?[0-9\s\-()]+$/.test(phoneNumber)) {
       newErrors.phoneNumber = "Please enter a valid phone number";
     }
     
@@ -360,12 +399,33 @@ const ReminderForm: React.FC<ReminderFormProps> = ({ initialData, onClose }) => 
                 id="phoneNumber"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="Enter phone number"
-                className={cn("pl-10", errors.phoneNumber ? "border-destructive" : "")}
+                placeholder="Enter phone number (e.g. 9198765xxxx)"
+                className={cn(
+                  "pl-10", 
+                  errors.phoneNumber ? "border-destructive" : "",
+                  isIndianNumber ? "border-whatsapp" : ""
+                )}
               />
+              {isIndianNumber && !errors.phoneNumber && (
+                <div className="absolute right-3 top-2.5">
+                  <Badge variant="outline" className="bg-whatsapp/10 text-xs">
+                    IN
+                  </Badge>
+                </div>
+              )}
             </div>
-            {errors.phoneNumber && (
-              <p className="text-destructive text-sm">{errors.phoneNumber}</p>
+            {errors.phoneNumber ? (
+              <p className="text-destructive text-sm flex items-center">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                {errors.phoneNumber}
+              </p>
+            ) : phoneHintText ? (
+              <p className="text-muted-foreground text-xs">{phoneHintText}</p>
+            ) : null}
+            {isIndianNumber && !errors.phoneNumber && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Format: {formatIndianNumber(phoneNumber)}
+              </p>
             )}
           </div>
 

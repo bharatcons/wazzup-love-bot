@@ -1,7 +1,7 @@
-
 import React, { useState, useEffect } from "react";
 import { useReminders } from "@/contexts/ReminderContext";
 import { formatReminderTime, getNextOccurrence, getWhatsAppLink } from "@/utils/reminderUtils";
+import { isLikelyIndianNumber, getIndianWhatsAppLink } from "@/utils/phoneUtils";
 import { Reminder } from "@/types/reminder";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -109,9 +109,17 @@ const UpcomingReminders: React.FC = () => {
                   size="sm" 
                   className="bg-whatsapp hover:bg-whatsapp-dark h-7 w-7 md:h-8 md:w-8 p-0"
                   onClick={() => {
-                    const whatsappUrl = getWhatsAppLink(reminder.phoneNumber);
-                    const encodedMessage = encodeURIComponent(reminder.message);
-                    window.open(`${whatsappUrl}&text=${encodedMessage}`, '_blank');
+                    // Check if it's an Indian number
+                    if (isLikelyIndianNumber(reminder.phoneNumber)) {
+                      // Use specialized Indian WhatsApp link
+                      const whatsappUrl = getIndianWhatsAppLink(reminder.phoneNumber, reminder.message);
+                      window.open(whatsappUrl, '_blank');
+                    } else {
+                      // Standard handling for other numbers
+                      const whatsappUrl = getWhatsAppLink(reminder.phoneNumber);
+                      const encodedMessage = encodeURIComponent(reminder.message);
+                      window.open(`${whatsappUrl}&text=${encodedMessage}`, '_blank');
+                    }
                   }}
                 >
                   <ExternalLink className="h-3 w-3 md:h-4 md:w-4" />
