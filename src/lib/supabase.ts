@@ -1,13 +1,17 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { Reminder } from '@/types/reminder';
 
-export const supabaseUrl = 'https://znaqgqelezdzvqxqhiqi.supabase.co';
+// Use environment variables with fallback to hardcoded values for safety
+export const supabaseUrl = import.meta.env.NEXT_PUBLIC_SUPABASE_URL || 'https://znaqgqelezdzvqxqhiqi.supabase.co';
 // This is the public anon key - it's safe to include in client-side code
-export const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpuYXFncWVsZXpkenZxeHFoaXFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTUzMTgyNDAsImV4cCI6MjAzMDg5NDI0MH0.M5AKnAO1QHonl0Vmhj_36oLhPFwwN6NnCis0v9_Qu7Y';
+export const supabaseAnonKey = import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpuYXFncWVsZXpkenZxeHFoaXFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYyNjExNDAsImV4cCI6MjA2MTgzNzE0MH0.LZso6K7Cz5x056ZFQRb80nG2tS6iIDgG7LUNxa_7iTc';
 
 // Create Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Add console logging to debug connection issues
+console.log('Supabase initialized with URL:', supabaseUrl);
+console.log('Using anon key ending with:', supabaseAnonKey.substring(supabaseAnonKey.length - 10));
 
 // Reminder database functions
 export async function fetchReminders() {

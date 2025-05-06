@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Reminder } from '@/types/reminder';
 import { useToast } from '@/components/ui/use-toast';
@@ -16,6 +15,7 @@ interface ReminderContextType {
   toggleReminderActive: (id: string) => Promise<void>;
   activeReminders: Reminder[];
   upcomingReminders: Reminder[];
+  setReminders: (reminders: Reminder[]) => void;
 }
 
 const ReminderContext = createContext<ReminderContextType | undefined>(undefined);
@@ -176,6 +176,32 @@ export const ReminderProvider: React.FC<ReminderProviderProps> = ({ children }) 
     })
     .map(({ reminder }) => reminder);
 
+  // Add this function to allow bulk setting of reminders (for backup/restore)
+  const setReminders = (newReminders: Reminder[]) => {
+    // Update cache immediately for a responsive UI
+    queryClient.setQueryData(['reminders'], newReminders);
+    
+    // Then update the database in background
+    Promise.all(newReminders.map(reminder => updateReminderInDb(reminder)))
+      .then(() => {
+        toast({
+          title: "Reminders Restored",
+          description: `${newReminders.length} reminders have been restored successfully.`,
+        });
+      })
+      .catch((error) => {
+        console.error('Error restoring reminders:', error);
+        toast({
+          title: "Restore Error",
+          description: "There was an error restoring some reminders.",
+          variant: "destructive",
+        });
+        
+        // Refetch to ensure UI is in sync with database
+        queryClient.invalidateQueries({ queryKey: ['reminders'] });
+      });
+  };
+
   const value = {
     reminders,
     isLoading,
@@ -186,6 +212,7 @@ export const ReminderProvider: React.FC<ReminderProviderProps> = ({ children }) 
     toggleReminderActive,
     activeReminders,
     upcomingReminders,
+    setReminders,
   };
 
   return (

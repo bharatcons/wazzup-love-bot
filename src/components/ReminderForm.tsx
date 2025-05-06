@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,16 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon, CheckIcon, MessageCircle, Phone, Clock } from "lucide-react";
 import { Toggle } from "@/components/ui/toggle";
+import { useTemplates } from '@/contexts/TemplateContext';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ChevronDown, ListFilter, Sparkles } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { useContacts } from '@/contexts/ContactContext';
+import { Contact } from '@/services/ContactService';
+import { Users, Search, User } from 'lucide-react';
+import { useDebounce } from '@/hooks/useDebounce';
+import { formatPhoneNumber } from '@/utils/reminderUtils';
 
 interface ReminderFormProps {
   initialData?: Reminder;
@@ -52,12 +62,62 @@ const ReminderForm: React.FC<ReminderFormProps> = ({ initialData, onClose }) => 
   
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const { templates } = useTemplates();
+  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
+  const [templateFilterTag, setTemplateFilterTag] = useState<string | null>(null);
+  
+  const { contacts, recentContacts, searchContacts, markContactAsUsed } = useContacts();
+  const [isContactDialogOpen, setIsContactDialogOpen] = useState(false);
+  const [contactSearchQuery, setContactSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Contact[]>([]);
+  const debouncedContactSearchQuery = useDebounce(contactSearchQuery, 300);
+  
+  // Get all unique tags from templates
+  const allTemplateTags = Array.from(new Set(
+    templates.flatMap(template => template.tags || [])
+  )).sort();
+  
+  // Filter templates by selected tag
+  const filteredTemplates = templateFilterTag
+    ? templates.filter(t => t.tags?.includes(templateFilterTag))
+    : templates;
+  
+  // Effect to handle contact search
+  useEffect(() => {
+    const fetchSearchResults = async () => {
+      if (debouncedContactSearchQuery.trim()) {
+        const results = await searchContacts(debouncedContactSearchQuery);
+        setSearchResults(results);
+      } else {
+        setSearchResults([]);
+      }
+    };
+    
+    fetchSearchResults();
+  }, [debouncedContactSearchQuery, searchContacts]);
+  
+  // Function to apply selected template
+  const applyTemplate = (templateContent: string) => {
+    setMessage(templateContent);
+    setIsTemplateDialogOpen(false);
+  };
+
   const handleWeekDayToggle = (day: WeekDay) => {
     if (weekDays.includes(day)) {
       setWeekDays(weekDays.filter(d => d !== day));
     } else {
       setWeekDays([...weekDays, day]);
     }
+  };
+
+  // Function to apply selected contact
+  const applyContact = (contact: Contact) => {
+    setContactName(contact.name);
+    setPhoneNumber(contact.phoneNumber);
+    setIsContactDialogOpen(false);
+    
+    // Mark the contact as recently used
+    markContactAsUsed(contact.id);
   };
 
   const validateForm = (): boolean => {
@@ -181,14 +241,110 @@ const ReminderForm: React.FC<ReminderFormProps> = ({ initialData, onClose }) => 
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="contactName">Contact Name</Label>
+            <div className="flex justify-between items-center">
+              <Label htmlFor="contactName">Contact Name</Label>
+              <Dialog open={isContactDialogOpen} onOpenChange={setIsContactDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="h-8 gap-1 text-xs"
+                    type="button"
+                  >
+                    <Users className="h-3 w-3" />
+                    Contacts
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-[650px] max-h-[80vh]">
+                  <DialogHeader>
+                    <DialogTitle>Choose a Contact</DialogTitle>
+                    <DialogDescription>
+                      Select a contact for your reminder
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  {contacts.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">No contacts found. Create contacts in the Contacts tab.</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Search input */}
+                      <div className="relative mb-4">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search contacts..."
+                          value={contactSearchQuery}
+                          onChange={(e) => setContactSearchQuery(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                      
+                      {/* Recent contacts section if there are any */}
+                      {recentContacts.length > 0 && !contactSearchQuery && (
+                        <div className="mb-4">
+                          <h3 className="text-sm font-medium mb-2">Recent Contacts</h3>
+                          <div className="grid gap-2">
+                            {recentContacts.map(contact => (
+                              <div 
+                                key={contact.id}
+                                className="border rounded-md p-3 hover:bg-muted cursor-pointer transition-colors"
+                                onClick={() => applyContact(contact)}
+                              >
+                                <div className="font-medium">{contact.name}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  {formatPhoneNumber(contact.phoneNumber)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <ScrollArea className="h-[50vh] pr-4">
+                        <div className="grid gap-2">
+                          {(contactSearchQuery ? searchResults : contacts).map(contact => (
+                            <div 
+                              key={contact.id}
+                              className="border rounded-md p-3 hover:bg-muted cursor-pointer transition-colors"
+                              onClick={() => applyContact(contact)}
+                            >
+                              <div className="font-medium">{contact.name}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {formatPhoneNumber(contact.phoneNumber)}
+                              </div>
+                              {contact.tags && contact.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {contact.tags.map(tag => (
+                                    <Badge key={tag} variant="outline" className="text-xs">
+                                      {tag}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          
+                          {contactSearchQuery && searchResults.length === 0 && (
+                            <div className="text-center py-4">
+                              <p className="text-muted-foreground">No contacts match your search.</p>
+                            </div>
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </>
+                  )}
+                </DialogContent>
+              </Dialog>
+            </div>
             <div className="relative">
+              <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 id="contactName"
                 value={contactName}
                 onChange={(e) => setContactName(e.target.value)}
-                placeholder="Enter contact name"
-                className={errors.contactName ? "border-destructive" : ""}
+                placeholder="Enter name"
+                className={cn("pl-10", errors.contactName ? "border-destructive" : "")}
               />
             </div>
             {errors.contactName && (
@@ -214,17 +370,97 @@ const ReminderForm: React.FC<ReminderFormProps> = ({ initialData, onClose }) => 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="message">Message</Label>
-            <div className="relative">
-              <MessageCircle className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Textarea
-                id="message"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Enter your message"
-                className={cn("pl-10 min-h-[100px]", errors.message ? "border-destructive" : "")}
-              />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="message">Message</Label>
+              <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-8 gap-1 text-xs"
+                    type="button"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    Templates
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-[650px] max-h-[80vh]">
+                  <DialogHeader>
+                    <DialogTitle>Choose a Template</DialogTitle>
+                    <DialogDescription>
+                      Select a template to use for your message
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  {templates.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">No templates found. Create templates in the Templates tab.</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Filter by tag */}
+                      {allTemplateTags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          <Badge 
+                            variant={templateFilterTag === null ? "default" : "outline"}
+                            className="cursor-pointer"
+                            onClick={() => setTemplateFilterTag(null)}
+                          >
+                            All
+                          </Badge>
+                          {allTemplateTags.map(tag => (
+                            <Badge 
+                              key={tag}
+                              variant={templateFilterTag === tag ? "default" : "outline"}
+                              className="cursor-pointer"
+                              onClick={() => setTemplateFilterTag(tag)}
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      
+                      <ScrollArea className="h-[50vh] pr-4">
+                        <div className="grid gap-3">
+                          {filteredTemplates.map(template => (
+                            <div 
+                              key={template.id}
+                              className="border rounded-md p-3 hover:bg-muted cursor-pointer transition-colors"
+                              onClick={() => applyTemplate(template.content)}
+                            >
+                              <div className="font-medium mb-1">{template.title}</div>
+                              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                {template.content.length > 120
+                                  ? `${template.content.substring(0, 120)}...`
+                                  : template.content}
+                              </p>
+                              
+                              {template.tags && template.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {template.tags.map(tag => (
+                                    <Badge key={tag} variant="outline" className="text-xs">
+                                      {tag}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </>
+                  )}
+                </DialogContent>
+              </Dialog>
             </div>
+            <Textarea
+              id="message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Enter your message"
+              className={cn("min-h-[120px]", errors.message ? "border-destructive" : "")}
+            />
             {errors.message && (
               <p className="text-destructive text-sm">{errors.message}</p>
             )}
