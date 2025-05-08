@@ -25,7 +25,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, CheckIcon, MessageCircle, Phone, Clock, AlertCircle } from "lucide-react";
+import { CalendarIcon, CheckIcon, MessageCircle, Phone, Clock, AlertCircle, Smartphone, User } from "lucide-react";
 import { Toggle } from "@/components/ui/toggle";
 import { useTemplates } from '@/contexts/TemplateContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -34,10 +34,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useContacts } from '@/contexts/ContactContext';
 import { Contact } from '@/services/ContactService';
-import { Users, Search, User } from 'lucide-react';
+import { Users, Search } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { formatPhoneNumber } from '@/utils/reminderUtils';
 import { isValidIndianNumber, formatIndianNumber, isLikelyIndianNumber } from '@/utils/phoneUtils';
+import { toast } from '@/components/ui/use-toast';
+import { PhoneContactImporter, DeviceContact } from '@/components/PhoneContactImporter';
 
 interface ReminderFormProps {
   initialData?: Reminder;
@@ -67,11 +69,12 @@ const ReminderForm: React.FC<ReminderFormProps> = ({ initialData, onClose }) => 
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
   const [templateFilterTag, setTemplateFilterTag] = useState<string | null>(null);
   
-  const { contacts, recentContacts, searchContacts, markContactAsUsed } = useContacts();
+  const { contacts, recentContacts, searchContacts, markContactAsUsed, addContact } = useContacts();
   const [isContactDialogOpen, setIsContactDialogOpen] = useState(false);
   const [contactSearchQuery, setContactSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Contact[]>([]);
   const debouncedContactSearchQuery = useDebounce(contactSearchQuery, 300);
+  const [isPhoneContactImportOpen, setIsPhoneContactImportOpen] = useState(false);
   
   // Get all unique tags from templates
   const allTemplateTags = Array.from(new Set(
@@ -119,6 +122,39 @@ const ReminderForm: React.FC<ReminderFormProps> = ({ initialData, onClose }) => 
     
     // Mark the contact as recently used
     markContactAsUsed(contact.id);
+  };
+
+  // New function to handle phone contact import
+  const handlePhoneContactImport = async (deviceContact: { name: string; phoneNumber: string }) => {
+    // First check if this contact already exists in our database
+    const results = await searchContacts(deviceContact.phoneNumber);
+    
+    if (results.length > 0) {
+      // If the contact exists, use it
+      applyContact(results[0]);
+      toast({
+        title: "Existing contact used",
+        description: `${results[0].name} was found in your contacts and selected`
+      });
+    } else {
+      // If the contact doesn't exist, add it and then use it
+      const newContact = await addContact({
+        name: deviceContact.name,
+        phoneNumber: deviceContact.phoneNumber,
+        notes: "Imported from phone contacts",
+        tags: ["phone-import"]
+      });
+      
+      if (newContact) {
+        applyContact(newContact);
+        toast({
+          title: "Contact imported and added",
+          description: `${deviceContact.name} was imported from your phone and added to your contacts`
+        });
+      }
+    }
+    
+    setIsPhoneContactImportOpen(false);
   };
 
   // Add state for phone number validation
@@ -282,49 +318,94 @@ const ReminderForm: React.FC<ReminderFormProps> = ({ initialData, onClose }) => 
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <Label htmlFor="contactName">Contact Name</Label>
-              <Dialog open={isContactDialogOpen} onOpenChange={setIsContactDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="h-8 gap-1 text-xs"
-                    type="button"
-                  >
-                    <Users className="h-3 w-3" />
-                    Contacts
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-[650px] max-h-[80vh]">
-                  <DialogHeader>
-                    <DialogTitle>Choose a Contact</DialogTitle>
-                    <DialogDescription>
-                      Select a contact for your reminder
-                    </DialogDescription>
-                  </DialogHeader>
-                  
-                  {contacts.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">No contacts found. Create contacts in the Contacts tab.</p>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Search input */}
-                      <div className="relative mb-4">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          placeholder="Search contacts..."
-                          value={contactSearchQuery}
-                          onChange={(e) => setContactSearchQuery(e.target.value)}
-                          className="pl-10"
-                        />
+              <div className="flex gap-2">
+                <Dialog open={isPhoneContactImportOpen} onOpenChange={setIsPhoneContactImportOpen}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="h-8 gap-1 text-xs"
+                      type="button"
+                    >
+                      <Smartphone className="h-3 w-3" />
+                      <span className="hidden sm:inline">Phone</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-[650px] max-h-[80vh]">
+                    <DialogHeader>
+                      <DialogTitle>Import from Phone Contacts</DialogTitle>
+                      <DialogDescription>
+                        Select a contact directly from your phone
+                      </DialogDescription>
+                    </DialogHeader>
+                    <PhoneContactImporter 
+                      onContactSelected={handlePhoneContactImport}
+                      onClose={() => setIsPhoneContactImportOpen(false)}
+                    />
+                  </DialogContent>
+                </Dialog>
+                
+                <Dialog open={isContactDialogOpen} onOpenChange={setIsContactDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="h-8 gap-1 text-xs"
+                      type="button"
+                    >
+                      <Users className="h-3 w-3" />
+                      <span className="hidden sm:inline">Contacts</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-[650px] max-h-[80vh]">
+                    <DialogHeader>
+                      <DialogTitle>Choose a Contact</DialogTitle>
+                      <DialogDescription>
+                        Select a contact for your reminder
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    {contacts.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-muted-foreground">No contacts found. Create contacts in the Contacts tab.</p>
                       </div>
-                      
-                      {/* Recent contacts section if there are any */}
-                      {recentContacts.length > 0 && !contactSearchQuery && (
-                        <div className="mb-4">
-                          <h3 className="text-sm font-medium mb-2">Recent Contacts</h3>
+                    ) : (
+                      <>
+                        {/* Search input */}
+                        <div className="relative mb-4">
+                          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search contacts..."
+                            value={contactSearchQuery}
+                            onChange={(e) => setContactSearchQuery(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                        
+                        {/* Recent contacts section if there are any */}
+                        {recentContacts.length > 0 && !contactSearchQuery && (
+                          <div className="mb-4">
+                            <h3 className="text-sm font-medium mb-2">Recent Contacts</h3>
+                            <div className="grid gap-2">
+                              {recentContacts.map(contact => (
+                                <div 
+                                  key={contact.id}
+                                  className="border rounded-md p-3 hover:bg-muted cursor-pointer transition-colors"
+                                  onClick={() => applyContact(contact)}
+                                >
+                                  <div className="font-medium">{contact.name}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {formatPhoneNumber(contact.phoneNumber)}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        <ScrollArea className="h-[50vh] pr-4">
                           <div className="grid gap-2">
-                            {recentContacts.map(contact => (
+                            {(contactSearchQuery ? searchResults : contacts).map(contact => (
                               <div 
                                 key={contact.id}
                                 className="border rounded-md p-3 hover:bg-muted cursor-pointer transition-colors"
@@ -334,47 +415,30 @@ const ReminderForm: React.FC<ReminderFormProps> = ({ initialData, onClose }) => 
                                 <div className="text-sm text-muted-foreground">
                                   {formatPhoneNumber(contact.phoneNumber)}
                                 </div>
+                                {contact.tags && contact.tags.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {contact.tags.map(tag => (
+                                      <Badge key={tag} variant="outline" className="text-xs">
+                                        {tag}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      <ScrollArea className="h-[50vh] pr-4">
-                        <div className="grid gap-2">
-                          {(contactSearchQuery ? searchResults : contacts).map(contact => (
-                            <div 
-                              key={contact.id}
-                              className="border rounded-md p-3 hover:bg-muted cursor-pointer transition-colors"
-                              onClick={() => applyContact(contact)}
-                            >
-                              <div className="font-medium">{contact.name}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {formatPhoneNumber(contact.phoneNumber)}
+                            
+                            {contactSearchQuery && searchResults.length === 0 && (
+                              <div className="text-center py-4">
+                                <p className="text-muted-foreground">No contacts match your search.</p>
                               </div>
-                              {contact.tags && contact.tags.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {contact.tags.map(tag => (
-                                    <Badge key={tag} variant="outline" className="text-xs">
-                                      {tag}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                          
-                          {contactSearchQuery && searchResults.length === 0 && (
-                            <div className="text-center py-4">
-                              <p className="text-muted-foreground">No contacts match your search.</p>
-                            </div>
-                          )}
-                        </div>
-                      </ScrollArea>
-                    </>
-                  )}
-                </DialogContent>
-              </Dialog>
+                            )}
+                          </div>
+                        </ScrollArea>
+                      </>
+                    )}
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
             <div className="relative">
               <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />

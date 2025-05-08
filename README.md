@@ -18,6 +18,9 @@ A modern web application for scheduling and managing automated WhatsApp reminder
 
 ### 👥 Contact Management
 - Store and organize your contacts
+- Import contacts directly from your phone's address book
+- Match existing contacts with phone contacts
+- Call contacts directly from the app
 - Tag contacts for easy filtering
 - Recent contacts feature for quick access
 
@@ -42,6 +45,7 @@ A modern web application for scheduling and managing automated WhatsApp reminder
 ### 🚀 Quick Send
 - Send WhatsApp messages without creating reminders
 - Access your contacts and templates quickly
+- Import contacts from your phone while composing
 - Perfect for one-off communications
 - Maintains history of recently used contacts
 
@@ -65,6 +69,13 @@ A modern web application for scheduling and managing automated WhatsApp reminder
 - Validation for Indian number formats (10 digits starting with 6-9)
 - Direct opening in WhatsApp with correct formatting
 
+### 📞 Phone Contacts Integration
+- Import contacts directly from your phone's contact list
+- Access your device's contacts within the app
+- Add phone contacts to your app's contact list with one click
+- Match and update existing contacts with phone contacts
+- Make phone calls to contacts directly from the app
+
 ## Automatic Reminder Triggering
 
 Reminders are automatically checked and triggered based on their scheduled times:
@@ -79,6 +90,7 @@ Reminders are automatically checked and triggered based on their scheduled times
 
 - Built with React, TypeScript, and Vite
 - Uses Supabase for real-time database and authentication
+- Integrates with the Contact Picker API for accessing phone contacts
 - Responsive design for both desktop and mobile devices
 - PWA-capable for installation on mobile devices
 
@@ -109,6 +121,15 @@ The application requires the following tables in your Supabase database:
 - `stickers`: Stores custom WhatsApp stickers
 
 A SQL setup script is provided in `src/scripts/db_setup.sql` to create these tables with the correct schema.
+
+## Phone Contacts Integration
+
+The application uses the modern Contact Picker API to access phone contacts:
+- Currently supported in Chrome for Android and Safari for iOS
+- The API provides a native contact picker interface
+- No persistent permissions required - user must approve each time
+- Only selected contacts are shared with the app (privacy-friendly)
+- For browsers without support, graceful fallback to manual contact entry
 
 ## License
 
