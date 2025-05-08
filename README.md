@@ -124,12 +124,51 @@ A SQL setup script is provided in `src/scripts/db_setup.sql` to create these tab
 
 ## Phone Contacts Integration
 
-The application uses the modern Contact Picker API to access phone contacts:
+The application uses multiple methods to access and import contacts:
+
+### Device Contacts
+- Uses the modern Contact Picker API to access phone contacts
 - Currently supported in Chrome for Android and Safari for iOS
 - The API provides a native contact picker interface
 - No persistent permissions required - user must approve each time
 - Only selected contacts are shared with the app (privacy-friendly)
 - For browsers without support, graceful fallback to manual contact entry
+
+### Google Contacts
+- Import contacts directly from your Google account
+- Requires authorization via Google Sign-in
+- Access to your Google contacts with proper permission handling
+- Import multiple contacts at once
+
+### Manual Entry & Bulk Import
+- Manually add contacts when phone contacts are not accessible
+- Special formatting support for Indian phone numbers
+- Paste contact information from any source (CSV, text, etc.)
+- Intelligent parsing of pasted contact information
+- Extract names and phone numbers from various text formats
+
+### Enhanced Contact Management
+- Match existing contacts with phone contacts to update information
+- Call contacts directly using the native phone app
+- Detect and properly format international phone numbers
+- Add imported phone contacts directly to your reminders without saving them first
+- Convert imported phone contacts to saved contacts with a single click
+
+### Privacy & Permissions
+- Transparent permission system with clear user consent
+- No access to contacts without explicit permission
+- Does not store or transmit your contacts to external servers
+- All contact processing happens locally in your browser
+- Respects device privacy settings and permissions model
+
+### Integration Points
+- Import contacts while creating reminders
+- Update existing contacts with phone contact information
+- Access your contact list from any part of the application
+- Search and filter contacts by name, number, or tags
+- Add contacts during quick send operations
+
+For the best experience, use Chrome on Android or Safari on iOS, which fully support the Contact Picker API.
 
 ## License
 

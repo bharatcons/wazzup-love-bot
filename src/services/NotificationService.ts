@@ -8,6 +8,7 @@ class NotificationService {
   private reminders: Reminder[] = [];
   private audio: HTMLAudioElement | null = null;
   private autoTriggerEnabled = true; // Default to auto-trigger
+  private isSoundPlaying: boolean = false; // Track sound playing state
   private callbacks: {
     onReminderDue: (reminder: Reminder) => void;
   } = {
@@ -51,6 +52,19 @@ class NotificationService {
       
       // Preload the audio for faster playback
       this.audio.preload = 'auto';
+      
+      // Add event listeners to update status
+      this.audio.onplay = () => {
+        this.isSoundPlaying = true;
+      };
+      
+      this.audio.onpause = () => {
+        this.isSoundPlaying = false;
+      };
+      
+      this.audio.onended = () => {
+        this.isSoundPlaying = false;
+      };
       
       // Handle errors
       this.audio.onerror = (e) => {
@@ -99,6 +113,16 @@ class NotificationService {
     console.log(`Auto-trigger ${enabled ? 'enabled' : 'disabled'}`);
   }
   
+  // Public method to check if sound is currently playing
+  public isSoundActive(): boolean {
+    return this.isSoundPlaying;
+  }
+  
+  // Public method to stop the sound
+  public silenceReminder(): void {
+    this.stopSound(false); // Skip the fade effect for manual stops
+  }
+  
   private checkReminders() {
     const now = new Date();
     console.log("Checking for due reminders...", now.toLocaleTimeString());
@@ -116,7 +140,7 @@ class NotificationService {
       
       if (!hasDueReminders && this.audio && !this.audio.paused) {
         // Stop sound if no reminders are due anymore
-        this.stopSound();
+        this.stopSound(true);
       }
     }
   }
@@ -184,7 +208,7 @@ class NotificationService {
       
       notification.onclick = () => {
         this.openWhatsApp(reminder);
-        this.stopSound(); // Stop sound when notification is clicked
+        this.stopSound(true); // Stop sound when notification is clicked
         notification.close();
       };
     }
@@ -233,21 +257,30 @@ class NotificationService {
     }
   }
   
-  private stopSound() {
+  private stopSound(useFadeEffect: boolean = true) {
     if (this.audio && !this.audio.paused) {
-      // Fade out the sound gracefully
-      const fadeInterval = setInterval(() => {
-        if (this.audio && this.audio.volume > 0.1) {
-          this.audio.volume -= 0.1;
-        } else {
-          clearInterval(fadeInterval);
-          if (this.audio) {
-            this.audio.pause();
-            this.audio.currentTime = 0;
-            this.audio.volume = 0.7; // Reset volume for next time
+      if (useFadeEffect) {
+        // Fade out the sound gracefully
+        const fadeInterval = setInterval(() => {
+          if (this.audio && this.audio.volume > 0.1) {
+            this.audio.volume -= 0.1;
+          } else {
+            clearInterval(fadeInterval);
+            if (this.audio) {
+              this.audio.pause();
+              this.audio.currentTime = 0;
+              this.audio.volume = 0.7; // Reset volume for next time
+              this.isSoundPlaying = false;
+            }
           }
-        }
-      }, 100);
+        }, 100);
+      } else {
+        // Immediately stop the sound
+        this.audio.pause();
+        this.audio.currentTime = 0;
+        this.audio.volume = 0.7; // Reset volume for next time
+        this.isSoundPlaying = false;
+      }
     }
   }
   
@@ -291,7 +324,7 @@ class NotificationService {
     }
     
     // Stop sound if playing
-    this.stopSound();
+    this.stopSound(false);
     
     // Clean up audio
     this.audio = null;
